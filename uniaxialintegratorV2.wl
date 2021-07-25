@@ -3,7 +3,7 @@
 (* Inverse design of uniaxial sheets package *)
 (*
 so the data structure is 
-{uv,r,n,\[Alpha],\[Beta],\[Epsilon],b,s,p,q,dp,dq}
+{uv,r,n,\[Alpha],\[Beta],\[Epsilon],b,s,p,q}
 r[[i]] =  the 2d vector representing the position on the i^th surface
 n[[i]] =  the 2d vector representing the image of the director on the i^th surface
 \[Epsilon][[i]] = the i'th material response
@@ -19,7 +19,7 @@ g[[i]][r] = the metric of the original i'th target surface. g[[i]][r]:=({g1,g2,.
 *)
 
 
-(* ::Section::Closed:: *)
+(* ::Section:: *)
 (*Warp and weft integration*)
 
 
@@ -56,7 +56,7 @@ Return[{umaxtab,vmaxloc,data}];
 
 
 
-(* ::Section::Closed:: *)
+(* ::Section:: *)
 (*Diagonal integration*)
 
 
@@ -81,9 +81,8 @@ vv=1+diagonal-umaxtab[[vv]];];
 uu=1+diagonal-vv;
 If[vv==diagonal,
 (*integrate data along v*)
-{tv,data[[uu,vv]]}=N[integrateLvstep[Lv,eps0,pq0,tv,g,data[[1,vv-1]],propagationEq,i12,dv*signv]];If[vstop[data[[1,vv,4]],data[[1,vv,6]],lam1,lam2,Lambda],
-(*Do[umaxtab[[v]]=Max[1,diagonal-v],{v,vv,maxdiagonal}];
-Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,uu,maxdiagonal}];*)
+{tv,data[[uu,vv]]}=N[integrateLvstep[Lv,eps0,pq0,tv,g,data[[1,vv-1]],propagationEq,i12,dv*signv]];
+If[notNumeric[data[[uu,vv]]]||vstop[data[[1,vv,4]],data[[1,vv,6]],lam1,lam2,Lambda],
 Do[umaxtab[[v]]=Max[1,diagonal-v],{v,1,maxdiagonal}];
 Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,1,maxdiagonal}];
 maxdiagonalloc=diagonal-1;
@@ -91,9 +90,8 @@ Print["vstop at "<>ToString[{uu,vv}]];];
 ,
 If[vv==1,
 (*integrate data along u*)
-{tu,data[[uu,vv]]}=N[integrateLUstep[Lu,eps0,pq0,tu,g,data[[uu-1,1]],propagationEq,i12,du*signu]];If[ustop[data[[uu,1,5]],data[[uu,1,6]],lam1,lam2,Lambda],
-(*Do[umaxtab[[v]]=Max[1,diagonal-v],{v,vv,maxdiagonal}];
-Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,uu,maxdiagonal}];*)
+{tu,data[[uu,vv]]}=N[integrateLUstep[Lu,eps0,pq0,tu,g,data[[uu-1,1]],propagationEq,i12,du*signu]];
+If[notNumeric[data[[uu,vv]]]||ustop[data[[uu,1,5]],data[[uu,1,6]],lam1,lam2,Lambda],
 Do[umaxtab[[v]]=Max[1,diagonal-v],{v,1,maxdiagonal}];
 Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,1,maxdiagonal}];
 maxdiagonalloc=diagonal
@@ -102,40 +100,50 @@ If [uu<=2,Abort[]]];
 ,
 (*integrate r,n,\[Alpha],\[Beta],\[Epsilon],q along v*)
 data[[uu,vv]]=data[[uu,vv]]=N[integrateV[g,data[[uu,vv-1]],propagationEq,i12,signv*dv]];
-(*integrate \[Epsilon] another step along v to derive the relevant (i12-1)*q *)
-data[[uu,vv+1]][[6]]=(i12-1)*N[integrateV[g,data[[uu,vv]],propagationEq,i12,signv*dv]][[6]];
-(*derive the relevant (i12-1)*q *)
-data[[uu,vv]][[10]]=(i12-1)*qdq[data[[uu,vv;;vv+1,6]],data[[uu,vv;;vv+1,5]],signv*dv][[1,1]]+(2-i12)*data[[uu,vv,10]];
-If[vstop[data[[uu,vv,4]],data[[uu,vv,6]],lam1,lam2,Lambda],
-(*Do[umaxtab[[v]]=Max[1,diagonal-v],{v,vv,maxdiagonal}];
-Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,uu,maxdiagonal}];*)
+(*integrate \[Epsilon] another step along v to derive the relevant (2-i12)*p *)
+data[[uu+1,vv]][[6]]=
+(2-i12)*integrateV[g,data[[uu+1,vv-1]],propagationEq,i12,signv*dv][[6]]+
+(i12-1)*data[[uu+1,vv,6]];
+(*derive the relevant (2-i12)*p *)
+data[[uu,vv]][[9]]=
+(2-i12)*( pdp[data[[uu;;uu+1,vv,6]],data[[uu;;uu+1,vv,4]],signu*du][[1,1]])
++(i12-1)*data[[uu,vv]][[9]];
+
+If[notNumeric[data[[uu,vv]]]||vstop[data[[uu,vv,4]],data[[uu,vv,6]],lam1,lam2,Lambda],
 Do[umaxtab[[v]]=Max[1,diagonal-v],{v,1,maxdiagonal}];
 Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,1,maxdiagonal}];
 maxdiagonalloc=diagonal-1;
 Print["vstop at "<>ToString[{uu,vv}]];];
 (*Intergate {\[Beta],s} along u*)
 tempu=integrateU[g,data[[uu-1,vv]],propagationEq,i12,signu*du];
-data[[uu,vv,{5,8}]]+=tempu[[{5,8}]];
+data[[uu,vv,{5,8,9}]]+=tempu[[{5,8,9}]];
 data[[uu,vv,{2,3,6}]]=(1-uvratio)data[[uu,vv,{2,3,6}]]+uvratio*tempu[[{2,3,6}]];
-(*integrate \[Epsilon] another step along u to derive the relevant (2-i12)*p *)
-data[[uu+1,vv]][[6]]=(2-i12)*integrateU[g,data[[uu,vv]],propagationEq,i12,signu*du][[6]]+
-(i12-1)*data[[uu+1,vv,6]];
-(*derive the relevant (2-i12)*p *)
-data[[uu,vv]][[9]]=(2-i12)*( pdp[data[[uu;;uu+1,vv,6]],data[[uu;;uu+1,vv,4]],signu*du][[1,1]])+(i12-1)*data[[uu,vv]][[9]];If[ustop[data[[uu,vv,5]],data[[uu,vv,6]],lam1,lam2,Lambda],
-(*Do[umaxtab[[v]]=Max[1,diagonal-v],{v,vv,maxdiagonal}];
-Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,uu,maxdiagonal}];*)
-Do[umaxtab[[v]]=Max[1,diagonal-v],{v,1,maxdiagonal}];
-Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,1,maxdiagonal}];
-maxdiagonalloc=diagonal-1;
-(*umaxtab[[vv;;]]=(uu-1);
-vmaxtab[[uu;;]]=(vv-1);*)
-Print["ustop at "<>ToString[{uu,vv}]];
-If[uu<=2,Abort]];If[umaxtab[[vv]]<=uu,vmaxtab[[uu]]=(vv-1)];
+
+If[notNumeric[data[[uu,vv]]]||ustop[data[[uu,vv,5]],data[[uu,vv,6]],lam1,lam2,Lambda],
+	Do[umaxtab[[v]]=Max[1,diagonal-v],{v,1,maxdiagonal}];
+	Do[vmaxtab[[u]]=Max[1,diagonal-u],{u,1,maxdiagonal}];
+	maxdiagonalloc=diagonal-1;
+	Print["ustop at "<>ToString[{uu,vv}]];
+	If[uu<=2,Abort]];
+If[umaxtab[[vv]]<=uu,vmaxtab[[uu]]=(vv-1)];
 If[vmaxtab[[uu]]<=vv,umaxtab[[vv]]=(uu-1)];
 ];
 ];
 vv++;
 ];
+vv=2;
+While[vv<Min[vmaxtab[[1+diagonal-vv]],diagonal],
+If[1+diagonal-vv>umaxtab[[vv]],
+vv=1+diagonal-umaxtab[[vv]];];
+uu=1+diagonal-vv;
+
+(*integrate \[Epsilon] another step along u to derive the relevant (2-i12)*q *)
+data[[uu,vv+1]][[6]]=(i12-1)*integrateU[g,data[[uu-1,vv+1]],propagationEq,i12,signu*du][[6]]+
+(2-i12)*data[[uu,vv+1,6]];
+(*derive the relevant (2-i12)*q *)
+data[[uu,vv]][[10]]=(i12-1)*( qdq[data[[uu,vv;;vv+1,6]],data[[uu,vv;;vv+1,5]],signv*dv][[1,1]])+(2-i12)*data[[uu,vv]][[10]];
+vv++;];
+
 diagonal++;
 ];
 umaxtab=Table[Min[(1+maxdiagonal-vv),umaxtab[[vv]]],{vv,maxdiagonal}];
@@ -144,7 +152,7 @@ Return[{umaxtab,vmaxtab,data}]
 ];
 
 
-(* ::Section::Closed:: *)
+(* ::Section:: *)
 (*Initial condition integration*)
 
 
@@ -184,7 +192,7 @@ Return[{umaxtab,vmaxloc,data}];
 ];
 
 
-(* ::Subsection::Closed:: *)
+(* ::Subsection:: *)
 (*Integrate initial curves *)
 
 
@@ -215,22 +223,22 @@ Return[{dat,umaxlocal,vmaxlocal}];
 
 
 
-(* ::Subsection::Closed:: *)
+(* ::Subsection:: *)
 (*Origin*)
 
 
 origin[r0_,n0_,\[Epsilon]0_,pq0_,Lu_,Lv_,g_,i12_]:=Module[{x,y,dat},
-dat={{0,0},r0,n0,1,1,\[Epsilon]0,\[Kappa]g[Lu,0,g,{x,y}],\[Kappa]g[Lv,0,g,{x,y}]}~Join~Transpose[MapThread[If[#1==1,{#2,#3},{#3,#2}]&,{i12,D[\[Epsilon]0,t],pq0}]]/.t->0;
+dat={{0,0},r0,n0,1,1,\[Epsilon]0,\[Kappa]g[Lu,0,g,{x,y}],\[Kappa]g[Lv,0,g,{x,y}]}~Join~Transpose[MapThread[If[#1==1,{#2/Sqrt[D[Lu,t] . g@@Lu . D[Lu,t]],#3},{#3,#2/Sqrt[D[Lv,t] . g@@Lv . D[Lv,t]]}]&,{i12,D[\[Epsilon]0,t],pq0}]]/.t->0;
 Return[dat];];
 
 
-(* ::Subsection::Closed:: *)
+(* ::Subsection:: *)
 (*integrate initial curves step*)
 
 
 integrateLUstep[Lu_,eps0_,pq0_,t0_,g_,data_,propagationEq_,i12_,du_]:=
 Module[{\[Alpha]r,datar,tr,br,epsr,pr,qr,velocity},
-velocity=Sqrt[D[Lu,t].g[[1]][Lu].D[Lu,t]]/.t->t0;
+velocity=Sqrt[D[Lu,t] . g[[1]][Lu] . D[Lu,t]]/.t->t0;
 tr=t0+du/velocity/.t->t0;
 datar=integrateU[g,data,propagationEq,i12,du];
 \[Alpha]r=1;
@@ -249,7 +257,7 @@ Return[{tr,datar}];]
 
 integrateLvstep[Lv_,eps0_,pq0_,t0_,g_,data_,propagationEq_,i12_,dv_]:=
 Module[{\[Beta]r,datar,tr,sr,epsr,pr,qr,velocity},
-velocity=Sqrt[D[Lv,t].g[[1]][Lv].D[Lv,t]];
+velocity=Sqrt[D[Lv,t] . g[[1]][Lv] . D[Lv,t]];
 tr=t0+dv/velocity/.t->t0;
 datar=integrateV[g,data,propagationEq,i12,dv];
 \[Beta]r=1;
@@ -267,7 +275,7 @@ datar[[10]]=qr;
 Return[{tr,datar}];]
 
 
-(* ::Subsection::Closed:: *)
+(* ::Subsection:: *)
 (*Stop functions*)
 
 
@@ -299,26 +307,28 @@ isotropic=AllTrue[lam1list-lam2list,#==0&];
 stopconditions=Not[NumberQ[alpha]]||alpha<=0||lamneg||isotropic;
 Return[stopconditions];];
 
+notNumeric[list_]:=Not[AllTrue[Flatten[{list}],NumericQ]];
 
 
-(* ::Subsection::Closed:: *)
+
+(* ::Subsection:: *)
 (*Initial condition set up functions*)
 
 
 (*Initial condition set up functions *)
-npLv[Lv_,g_,t0_]:=ReplaceAll[D[Lv,t]/Sqrt[D[Lv,t].g[Lv].D[Lv,t]],t->t0];
+npLv[Lv_,g_,t0_]:=ReplaceAll[D[Lv,t]/Sqrt[D[Lv,t] . g[Lv] . D[Lv,t]],t->t0];
 (* nLv = find n=-Subscript[(Subscript[n, \[Perpendicular]]), \[Perpendicular]] along Lv(t) *)
 nLv[Lv_,g_,t0_]:=-fnp[npLv[Lv,g,t0],g[ReplaceAll[Lv,t->t0]]];
 (* sLv = find s= s0, s0=\[Kappa]g along Lv(t) *)
 sLv[Lv_,g_,t0_]:=Module[{x,y},Return[ \[Kappa]g[Lv,t0,g,{x,y}]];];
 
-nLu[Lu_,g_,t0_]:=ReplaceAll[D[Lu,t]/Sqrt[D[Lu,t].g[Lu].D[Lu,t]],t->t0];
+nLu[Lu_,g_,t0_]:=ReplaceAll[D[Lu,t]/Sqrt[D[Lu,t] . g[Lu] . D[Lu,t]],t->t0];
 (* bLu = find b=\[Kappa]g along Lu(t) *)
 bLu[Lu_,g_,t0_]:=Module[{x,y},Return[\[Kappa]g[Lu,t0,g,{x,y}]];];
 
 
 
-(* ::Section::Closed:: *)
+(* ::Section:: *)
 (*Integration steps*)
 
 
@@ -337,7 +347,7 @@ variables=Flatten[{{u,v},xy[target],nxy[target],\[Alpha],\[Beta],stringlist["\[E
 hasdu={1,1,1,0,1,1,0,1,i12-1,0};
 stepu=du*{{1,0},dur,dun,du\[Alpha],du\[Beta],du\[Epsilon],db,ds,dp,dq}/.propagationEq/.MapThread[#1->#2&,{variables,Flatten[data]}];
 datar=hasdu*(data+stepu);
-datar[[3]]=MapThread[#3/Sqrt[(#3.#1[#2].#3)]&,{g,datar[[2]],datar[[3]]}];
+datar[[3]]=MapThread[#3/Sqrt[(#3 . #1[#2] . #3)]&,{g,datar[[2]],datar[[3]]}];
 Return[datar];]
 
 integrateV[g_,data_,propagationEq_,i12_,dv_]:=
@@ -349,7 +359,7 @@ variables=Flatten[{u,v,xy[target],nxy[target],\[Alpha],\[Beta],stringlist["\[Eps
 hasdv={1,1,1,1,0,1,1,0,0,2-i12};
 stepv=dv*{{0,1},dvr,dvn,dv\[Alpha],dv\[Beta],dv\[Epsilon],db,ds,dp,dq}/.propagationEq/.MapThread[#1->#2&,{variables,Flatten[data]}];
 datar=hasdv*(data+stepv);
-datar[[3]]=MapThread[#3/Sqrt[(#3.#1[#2].#3)]&,{g,datar[[2]],datar[[3]]}];
+datar[[3]]=MapThread[#3/Sqrt[(#3 . #1[#2] . #3)]&,{g,datar[[2]],datar[[3]]}];
 Return[datar];]
 
 
@@ -378,8 +388,8 @@ directorperpendicular=MapThread[fnp,{directors,metrics}];
 \[Kappa]gv=Table[1/lambda1[eps,Lambda[[surface]]] (s+Sum[D[Log[lambda2[eps,Lambda[[surface]]]],eps[[ep]]]p[[ep]],{ep,targets-2}]),{surface,targets}];
 
 surfacecurvatures=Table[1/2 R[metrics[[surface]],position[[surface]]],{surface,targets}];
-n\[CapitalGamma]n=Table[directors[[surface]].\[CapitalGamma]s[[surface,i]] . directors[[surface]],{surface,targets},{i,2}]//Simplify;
-np\[CapitalGamma]n=Table[directorperpendicular[[surface]].\[CapitalGamma]s[[surface,i]] . directors[[surface]],{surface,targets},{i,2}]//Simplify;
+n\[CapitalGamma]n=Table[directors[[surface]] . \[CapitalGamma]s[[surface,i]] . directors[[surface]],{surface,targets},{i,2}]//Simplify;
+np\[CapitalGamma]n=Table[directorperpendicular[[surface]] . \[CapitalGamma]s[[surface,i]] . directors[[surface]],{surface,targets},{i,2}]//Simplify;
 
 \[Lambda]1times[f_]:=\[Lambda]times[f,lambda1,eps,Lambda];
 \[Lambda]2times[f_]:=\[Lambda]times[f,lambda2,eps,Lambda];
@@ -431,8 +441,8 @@ directorperpendicular=MapThread[fnp,{directors,metrics}];
 
 surfacecurvatures=Table[ surfaceK[[surface]]@position[[surface]],{surface,targets}];
 
-n\[CapitalGamma]n=Table[directors[[surface]].\[CapitalGamma]s[[surface,i]] . directors[[surface]],{surface,targets},{i,2}]//Simplify;
-np\[CapitalGamma]n=Table[directorperpendicular[[surface]].\[CapitalGamma]s[[surface,i]] . directors[[surface]],{surface,targets},{i,2}]//Simplify;
+n\[CapitalGamma]n=Table[directors[[surface]] . \[CapitalGamma]s[[surface,i]] . directors[[surface]],{surface,targets},{i,2}]//Simplify;
+np\[CapitalGamma]n=Table[directorperpendicular[[surface]] . \[CapitalGamma]s[[surface,i]] . directors[[surface]],{surface,targets},{i,2}]//Simplify;
 
 \[Lambda]1times[f_]:=\[Lambda]times[f,lambda1,eps,Lambda];
 \[Lambda]2times[f_]:=\[Lambda]times[f,lambda2,eps,Lambda];
@@ -469,7 +479,7 @@ Return[{p,dp}]]
 qdq[\[Epsilon]list_,\[Beta]_,dv_]:=pdp[\[Epsilon]list,\[Beta],dv]
 
 
-(* ::Subsection::Closed:: *)
+(* ::Subsection:: *)
 (*Deriving inverse equations for highest order terms db, ds, dqi, dpi,..*)
 
 
@@ -479,8 +489,8 @@ qdq[\[Epsilon]list_,\[Beta]_,dv_]:=pdp[\[Epsilon]list,\[Beta],dv]
 inverseEquations::usage="propagation eqns for dipq2 (db,ds,dq1 or dp1,...)";
 inverseEquations[surfacecurvatures_,Lambda_,eps_,lambda1_,lambda2_]:=Module[{i12,eqns,M2K,M2Kb},
 i12=i12assign[lambda1,lambda2,eps,Lambda];
-M2K=(Inverse[M2[eps,i12,Lambda,lambda1,lambda2,Length[Lambda]]]//.tobspq[eps]//.removeUV[eps]//Simplify).surfacecurvatures;
-M2Kb=(Inverse[M2[eps,i12,Lambda,lambda1,lambda2,Length[Lambda]]].Kb[eps,i12,Lambda,lambda1,lambda2,Length[Lambda]]//.tobspq[eps]//.removeUV[eps]//Simplify);
+M2K=(Inverse[M2[eps,i12,Lambda,lambda1,lambda2,Length[Lambda]]]//.tobspq[eps]//.removeUV[eps]//Simplify) . surfacecurvatures;
+M2Kb=(Inverse[M2[eps,i12,Lambda,lambda1,lambda2,Length[Lambda]]] . Kb[eps,i12,Lambda,lambda1,lambda2,Length[Lambda]]//.tobspq[eps]//.removeUV[eps]//Simplify);
 (*eqns=(Simplify[Inverse[M2[eps,i12,Lambda,lambda1,lambda2,Length[Lambda]]]].(surfacecurvatures-Kb[eps,i12,Lambda,lambda1,lambda2,Length[Lambda]])//.tobspq[eps]//.removeUV[eps]);*)
 eqns=M2K-M2Kb;
 Return[eqns];]
@@ -546,7 +556,7 @@ eps=toUV[ep];
 curvature=Table[1/2 R[DiagonalMatrix[{\[Alpha][u,v]^2lambda1[eps,Lambda[[surface]]]^2,\[Beta][u,v]^2lambda2[eps,Lambda[[surface]]]^2}],{u,v}],{surface,target}];
 Return[curvature]]
 
-Kb[eps_,i12_,Lambda_,lambda1_,lambda2_,target_]:=Simplify[gaussiancurvature[eps,Lambda,lambda1,lambda2,target]-M[eps,i12,Lambda,lambda1,lambda2,target].di\[Epsilon][eps,i12]]
+Kb[eps_,i12_,Lambda_,lambda1_,lambda2_,target_]:=Simplify[gaussiancurvature[eps,Lambda,lambda1,lambda2,target]-M[eps,i12,Lambda,lambda1,lambda2,target] . di\[Epsilon][eps,i12]]
 
 
 
@@ -554,7 +564,7 @@ Kb[eps_,i12_,Lambda_,lambda1_,lambda2_,target_]:=Simplify[gaussiancurvature[eps,
 (*Common functions*)
 
 
-(* ::Subsection:: *)
+(* ::Subsection::Closed:: *)
 (*Geometrical functions*)
 
 
@@ -572,7 +582,7 @@ R[g_,x_](*R*):=Sum[Inverse[g][[i,j]]Ricci[g,x,i,j],{i,Length[x]},{j,Length[x]}];
 ReplaceAll[\[CapitalGamma][g,x,i,j,k],MapThread[#1->#2&,{x,x0}]];
 (*geodesic curvature \[Kappa]g*)
 \[Kappa]g[\[Gamma]_,t0_,g_,x_](*\[Kappa]_g(\!\(\(\[Gamma]\((t)\)\)
-\*SubscriptBox[\(|\), \(t0\)]\);g,x)*):=FullSimplify[ReplaceAll[Sqrt[Det[g[\[Gamma]]]]/(D[\[Gamma],t].g[\[Gamma]].D[\[Gamma],t])^(3/2)
+\*SubscriptBox[\(|\), \(t0\)]\);g,x)*):=FullSimplify[ReplaceAll[Sqrt[Det[g[\[Gamma]]]]/(D[\[Gamma],t] . g[\[Gamma]] . D[\[Gamma],t])^(3/2)
 ( \[CapitalGamma][g[x],x,2,1,1,\[Gamma]]D[\[Gamma],t][[1]]^3
 +(2\[CapitalGamma][g[x],x,2,1,2,\[Gamma]]-\[CapitalGamma][g[x],x,1,1,1,\[Gamma]])D[\[Gamma],t][[1]]^2 D[\[Gamma],t][[2]]
 +(\[CapitalGamma][g[x],x,2,2,2,\[Gamma]]-2\[CapitalGamma][g[x],x,1,1,2,\[Gamma]])D[\[Gamma],t][[2]]^2 D[\[Gamma],t][[1]]
@@ -581,7 +591,7 @@ ReplaceAll[\[CapitalGamma][g,x,i,j,k],MapThread[#1->#2&,{x,x0}]];
 
 
 (*fpn= find Subscript[n, \[Perpendicular]] given n *)
-fnp[n_,g_]:=1/Sqrt[Det[g]] {-(g.n)[[2]],(g.n)[[1]]};
+fnp[n_,g_]:=1/Sqrt[Det[g]] {-(g . n)[[2]],(g . n)[[1]]};
 
 
 (* ::Subsection::Closed:: *)
@@ -621,7 +631,7 @@ nxy[number_]:=ToExpression["{nx"<>ToString[#]<>",ny"<>ToString[#]<>"}"]&/@Range[
 stringlist[string_,length_]:=ToExpression[string<>ToString[#]]&/@Range[length]
 
 
-(* ::Subsection::Closed:: *)
+(* ::Subsection:: *)
 (*Organizing functions*)
 
 
@@ -629,6 +639,23 @@ stringlist[string_,length_]:=ToExpression[string<>ToString[#]]&/@Range[length]
 i12assign[lambda1_,lambda2_,eps_,Lambda_]:=Table[If[#,1,2]&[ Nand@@Table[0===FullSimplify[D[lambda1[eps,Lambda[[i]]],eps[[j]]]],{i,Length[Lambda]}]],{j,Length[eps]}];
 
 q\[Lambda][lambda1_,eps_,Lambda_]:=Table[Nand@@Table[0===FullSimplify[D[lambda1[eps,Lambda[[i]]],eps[[j]]]],{i,Length[Lambda]}],{j,Length[Lambda]-2}];
+
+
+
+(* ::Subsection:: *)
+(*Testing functions*)
+
+
+testInitialData[propagationEq_,initial_]:=
+Module[{variables,target,step,data,i12,numericQ},
+i12=initial[[8]];
+data=origin@@initial;
+target=Length[i12]+2;
+variables=Flatten[{{u,v},xy[target],nxy[target],\[Alpha],\[Beta],stringlist["\[Epsilon]",target-2],b,s,stringlist["p",target-2],stringlist["q",target-2]}];
+step=propagationEq[[;;,2]]/.MapThread[#1->#2&,{variables,Flatten[data]}];
+numericQ=AllTrue[Flatten[{step,data}]//N,NumericQ];
+If[numericQ,Print["Propagation Equations and data at the origin are numeric"],Print["ERROR - Initial conditions produce non-numeric propagation equations or data at the origin"];];
+Return[numericQ];]
 
 CheckSolverValidity::usage="Is the uniaxial sheet's inverse design described by initial value or boundary problems";
 CheckSolverValidity[lambda1_,lambda2_,eps_,Lambda_]:=If[AnyTrue[MapThread[#1&&#2&,{q\[Lambda][lambda1,eps,Lambda],q\[Lambda][lambda2,eps,Lambda]}],#&],"Elliptic equations - search for a different solver",
@@ -641,15 +668,16 @@ Table[If[q\[Lambda][lambda1,eps,Lambda][[i]],Print[ToString[eps[[i]]]<>" and q"<
 
 
 (* General functions *)
-\[Lambda]times[f_,lambdai_,eps_,Lambda_]:=If[Length[f[[1]]]>1,MapThread[#1.#2&,{IdentityMatrix[2]lambdai[eps,#]&/@Lambda,f}],MapThread[#1*#2&,{lambdai[eps,#]&/@Lambda,f}]];
-normalizevec[v_,g_]:=v/Sqrt[v.g.v]
+\[Lambda]times[f_,lambdai_,eps_,Lambda_]:=If[Length[f[[1]]]>1,MapThread[#1 . #2&,{IdentityMatrix[2]lambdai[eps,#]&/@Lambda,f}],MapThread[#1*#2&,{lambdai[eps,#]&/@Lambda,f}]];
+normalizevec[v_,g_]:=v/Sqrt[v . g . v]
 
 (* embedding to metric: (x,y,z)[xi,eta] \[Rule] g[xi,eta] *)
 exprToFunction[expr_,vars_]:=Function[Evaluate[expr/.Thread[vars->Array[Slot,Length[vars]]]]]
-embeddingToMetric[embedding_,coordinates_]:=exprToFunction[Table[D[embedding,i].D[embedding,j],{i,coordinates},{j,coordinates}],coordinates];
+embeddingToMetric[embedding_,coordinates_,simplify_:False]:=exprToFunction[Table[D[embedding,i] . D[embedding,j],{i,coordinates},{j,coordinates}],coordinates];
+simplifyembeddingToMetric[embedding_,coordinates_]:=exprToFunction[FullSimplify[Table[D[embedding,i] . D[embedding,j],{i,coordinates},{j,coordinates}]],coordinates];
 
 
-(* ::Section:: *)
+(* ::Section::Closed:: *)
 (*Plotting*)
 
 
